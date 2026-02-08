@@ -9,7 +9,11 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+
+// Servir el HTML principal
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // Archivo de base de datos
 const DB_FILE = path.join(__dirname, 'database.json');
