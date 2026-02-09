@@ -48,10 +48,12 @@
             display: flex;
             background: #f8f9fa;
             border-bottom: 2px solid #e9ecef;
+            overflow-x: auto;
         }
 
         .tab {
             flex: 1;
+            min-width: 120px;
             padding: 20px;
             text-align: center;
             cursor: pointer;
@@ -61,6 +63,7 @@
             font-weight: 600;
             color: #495057;
             transition: all 0.3s;
+            white-space: nowrap;
         }
 
         .tab:hover {
@@ -168,6 +171,16 @@
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
 
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
         .btn-danger {
             background: #dc3545;
             color: white;
@@ -175,6 +188,15 @@
 
         .btn-danger:hover {
             background: #c82333;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
         }
 
         table {
@@ -255,6 +277,46 @@
             border: 1px solid #f5c6cb;
         }
 
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .backup-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .backup-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-label {
+            padding: 12px 30px;
+            background: #667eea;
+            color: white;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-block;
+        }
+
+        .file-label:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
         @media (max-width: 768px) {
             .header h1 {
                 font-size: 1.8em;
@@ -272,6 +334,10 @@
             table td {
                 padding: 10px;
             }
+
+            .backup-buttons {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
@@ -287,6 +353,7 @@
             <button class="tab" onclick="switchTab('ventas')">💰 Ventas</button>
             <button class="tab" onclick="switchTab('gastos')">💸 Gastos</button>
             <button class="tab" onclick="switchTab('reportes')">📈 Reportes</button>
+            <button class="tab" onclick="switchTab('respaldo')">💾 Respaldo</button>
         </div>
 
         <div class="content">
@@ -461,6 +528,58 @@
                 <h3 style="margin-top: 30px; margin-bottom: 15px;">Ventas por Método de Pago</h3>
                 <div id="ventasPorMetodo"></div>
             </div>
+
+            <!-- RESPALDO -->
+            <div id="respaldo" class="tab-content">
+                <h2 style="margin-bottom: 20px;">💾 Respaldo de Datos</h2>
+                
+                <div id="alertRespaldo"></div>
+
+                <div class="backup-section">
+                    <h3 style="margin-bottom: 15px;">📥 Descargar Respaldo</h3>
+                    <p style="color: #6c757d; margin-bottom: 15px;">
+                        Descarga una copia de seguridad de todos tus datos (ventas y gastos) en formato JSON.
+                        Guarda este archivo en un lugar seguro.
+                    </p>
+                    <button class="btn btn-success" onclick="descargarRespaldo()">
+                        ⬇️ Descargar Respaldo
+                    </button>
+                </div>
+
+                <div class="backup-section">
+                    <h3 style="margin-bottom: 15px;">📤 Restaurar Respaldo</h3>
+                    <p style="color: #6c757d; margin-bottom: 15px;">
+                        <strong>⚠️ PRECAUCIÓN:</strong> Restaurar un respaldo reemplazará TODOS los datos actuales.
+                        Asegúrate de descargar un respaldo actual antes de restaurar.
+                    </p>
+                    <div class="backup-buttons">
+                        <label for="fileInput" class="file-label">
+                            📁 Seleccionar Archivo de Respaldo
+                        </label>
+                        <input type="file" id="fileInput" accept=".json" onchange="cargarArchivo(event)">
+                        <button class="btn btn-warning" onclick="restaurarRespaldo()" id="btnRestaurar" disabled>
+                            🔄 Restaurar Datos
+                        </button>
+                    </div>
+                    <div id="archivoInfo" style="margin-top: 15px; color: #6c757d;"></div>
+                </div>
+
+                <div class="backup-section">
+                    <h3 style="margin-bottom: 15px;">ℹ️ Recomendaciones</h3>
+                    <ul style="color: #6c757d; line-height: 1.8; margin-left: 20px;">
+                        <li>Descarga respaldos regularmente (semanal o mensual)</li>
+                        <li>Guarda los archivos en múltiples ubicaciones (USB, nube, email)</li>
+                        <li>Nombra los archivos con fechas para identificarlos fácilmente</li>
+                        <li>Prueba restaurar un respaldo ocasionalmente para verificar que funcione</li>
+                        <li>Antes de hacer cambios importantes, siempre descarga un respaldo</li>
+                    </ul>
+                </div>
+
+                <div class="backup-section">
+                    <h3 style="margin-bottom: 15px;">📊 Estadísticas de la Base de Datos</h3>
+                    <div id="estadisticasDB"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -473,6 +592,7 @@
         // Variables globales
         let ventas = [];
         let gastos = [];
+        let archivoRespaldo = null;
 
         // Establecer fecha actual en los formularios
         document.getElementById('ventaFecha').valueAsDate = new Date();
@@ -499,6 +619,8 @@
                 cargarGastos();
             } else if (tabName === 'reportes') {
                 cargarDatos().then(() => generarReporte());
+            } else if (tabName === 'respaldo') {
+                mostrarEstadisticasDB();
             }
         }
 
@@ -509,6 +631,135 @@
             setTimeout(() => {
                 alertDiv.innerHTML = '';
             }, 3000);
+        }
+
+        // FUNCIONES DE RESPALDO
+        async function descargarRespaldo() {
+            try {
+                const response = await fetch(`${API_URL}/backup`);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const fecha = new Date().toISOString().split('T')[0];
+                a.download = `backup-negocio-${fecha}.json`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                mostrarAlerta('alertRespaldo', '✓ Respaldo descargado exitosamente', 'success');
+            } catch (error) {
+                console.error('Error descargando respaldo:', error);
+                mostrarAlerta('alertRespaldo', '✗ Error al descargar respaldo', 'error');
+            }
+        }
+
+        function cargarArchivo(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    archivoRespaldo = JSON.parse(e.target.result);
+                    
+                    // Validar estructura
+                    if (!archivoRespaldo.ventas || !archivoRespaldo.gastos) {
+                        throw new Error('Formato inválido');
+                    }
+                    
+                    document.getElementById('btnRestaurar').disabled = false;
+                    document.getElementById('archivoInfo').innerHTML = `
+                        <div class="alert alert-info">
+                            ✓ Archivo cargado: ${file.name}<br>
+                            📊 Ventas: ${archivoRespaldo.ventas.length} | Gastos: ${archivoRespaldo.gastos.length}
+                        </div>
+                    `;
+                } catch (error) {
+                    mostrarAlerta('alertRespaldo', '✗ Archivo inválido o corrupto', 'error');
+                    document.getElementById('btnRestaurar').disabled = true;
+                    archivoRespaldo = null;
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        async function restaurarRespaldo() {
+            if (!archivoRespaldo) {
+                mostrarAlerta('alertRespaldo', '✗ Primero selecciona un archivo', 'error');
+                return;
+            }
+            
+            if (!confirm('⚠️ ADVERTENCIA: Esto reemplazará TODOS tus datos actuales. ¿Estás seguro?')) {
+                return;
+            }
+            
+            if (!confirm('¿REALMENTE estás seguro? Esta acción no se puede deshacer.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/restore`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(archivoRespaldo)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    mostrarAlerta('alertRespaldo', '✓ Datos restaurados exitosamente', 'success');
+                    document.getElementById('fileInput').value = '';
+                    document.getElementById('btnRestaurar').disabled = true;
+                    document.getElementById('archivoInfo').innerHTML = '';
+                    archivoRespaldo = null;
+                    
+                    // Recargar datos
+                    setTimeout(() => {
+                        cargarDatos();
+                    }, 1000);
+                } else {
+                    mostrarAlerta('alertRespaldo', '✗ Error al restaurar datos', 'error');
+                }
+            } catch (error) {
+                console.error('Error restaurando:', error);
+                mostrarAlerta('alertRespaldo', '✗ Error de conexión', 'error');
+            }
+        }
+
+        async function mostrarEstadisticasDB() {
+            try {
+                const response = await fetch(`${API_URL}/estadisticas`);
+                const stats = await response.json();
+                
+                document.getElementById('estadisticasDB').innerHTML = `
+                    <table>
+                        <tr>
+                            <td><strong>Total de Ventas:</strong></td>
+                            <td>${ventas.length} registros</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Total de Gastos:</strong></td>
+                            <td>${gastos.length} registros</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Transacciones Totales:</strong></td>
+                            <td>${stats.totalTransacciones} registros</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Monto Total Ventas:</strong></td>
+                            <td class="positive">$${stats.totalVentas.toFixed(2)}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Monto Total Gastos:</strong></td>
+                            <td class="negative">$${stats.totalGastos.toFixed(2)}</td>
+                        </tr>
+                    </table>
+                `;
+            } catch (error) {
+                console.error('Error cargando estadísticas:', error);
+            }
         }
 
         // Cargar datos del servidor
@@ -946,3 +1197,4 @@
     </script>
 </body>
 </html>
+
