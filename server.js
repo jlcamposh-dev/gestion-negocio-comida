@@ -25,7 +25,8 @@ async function initDatabase() {
     } catch {
         const initialData = {
             ventas: [],
-            gastos: []
+            gastos: [],
+            menuComidaCorrida: {}
         };
         await fs.writeFile(DB_FILE, JSON.stringify(initialData, null, 2));
     }
@@ -35,10 +36,15 @@ async function initDatabase() {
 async function readDatabase() {
     try {
         const data = await fs.readFile(DB_FILE, 'utf8');
-        return JSON.parse(data);
+        const parsed = JSON.parse(data);
+        // Asegurar que menuComidaCorrida existe
+        if (!parsed.menuComidaCorrida) {
+            parsed.menuComidaCorrida = {};
+        }
+        return parsed;
     } catch (error) {
         console.error('Error leyendo base de datos:', error);
-        return { ventas: [], gastos: [] };
+        return { ventas: [], gastos: [], menuComidaCorrida: {} };
     }
 }
 
@@ -134,6 +140,136 @@ app.get('/api/estadisticas', async (req, res) => {
         totalPedidos: db.ventas.length,
         totalTransacciones: db.ventas.length + db.gastos.length
     });
+});
+
+// Rutas para Menú de Comida Corrida
+app.get('/api/menu', async (req, res) => {
+    const db = await readDatabase();
+    res.json(db.menuComidaCorrida || {});
+});
+
+app.post('/api/menu', async (req, res) => {
+    try {
+        const db = await readDatabase();
+        const { dia, tiempo, opcion, nombre, descripcion } = req.body;
+        
+        // Validar datos
+        if (!dia || !tiempo || !opcion || !nombre) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Faltan datos requeridos' 
+            });
+        }
+        
+        // Inicializar estructura si no existe
+        if (!db.menuComidaCorrida[dia]) {
+            db.menuComidaCorrida[dia] = {
+                'Sopa': {},
+                'Plato Fuerte': {},
+                'Postre': {}
+            };
+        }
+        
+        // Guardar platillo
+        db.menuComidaCorrida[dia][tiempo][opcion] = {
+            nombre: nombre,
+            descripcion: descripcion || ''
+        };
+        
+        if (await writeDatabase(db)) {
+            res.json({ 
+                success: true, 
+                platillo: { nombre, descripcion, dia, tiempo, opcion } 
+            });
+        } else {
+            res.status(500).json({ 
+                success: false, 
+                error: 'Error guardando platillo' 
+            });
+        }
+    } catch (error) {
+        console.error('Error en POST /api/menu:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Error del servidor' 
+        });
+    }
+});
+
+app.delete('/api/menu/:dia/:tiempo/:opcion', async (req, res) => {
+    try {
+        const db = await readDatabase();
+        const { dia, tiempo, opcion } = req.params;
+        
+        if (db.menuComidaCorrida[dia]?.[tiempo]?.[opcion]) {
+            delete db.menuComidaCorrida[dia][tiempo][opcion];
+            
+            if (await writeDatabase(db)) {
+                res.json({ success: true });
+            } else {
+                res.status(500).json({ 
+                    success: false, 
+                    error: 'Error eliminando platillo' 
+                });
+            }
+        } else {
+            res.status(404).json({ 
+                success: false, 
+                error: 'Platillo no encontrado' 
+            });
+        }
+    } catch (error) {
+        console.error('Error en DELETE /api/menu:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Error del servidor' 
+        });
+    }
+});
+
+// Ruta para descargar respaldo
+app.get('/api/backup', async (req, res) => {
+    try {
+        const db = await readDatabase();
+        const fecha = new Date().toISOString().split('T')[0];
+        const filename = `backup-negocio-${fecha}.json`;
+        
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.json(db);
+    } catch (error) {
+        console.error('Error creando backup:', error);
+        res.status(500).json({ success: false, error: 'Error creando backup' });
+    }
+});
+
+// Ruta para restaurar respaldo
+app.post('/api/restore', async (req, res) => {
+    try {
+        const data = req.body;
+        
+        // Validar que tenga la estructura correcta
+        if (!data.ventas || !data.gastos) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Formato de respaldo inválido' 
+            });
+        }
+        
+        // Asegurar que menuComidaCorrida existe
+        if (!data.menuComidaCorrida) {
+            data.menuComidaCorrida = {};
+        }
+        
+        if (await writeDatabase(data)) {
+            res.json({ success: true, message: 'Datos restaurados exitosamente' });
+        } else {
+            res.status(500).json({ success: false, error: 'Error restaurando datos' });
+        }
+    } catch (error) {
+        console.error('Error restaurando backup:', error);
+        res.status(500).json({ success: false, error: 'Error restaurando datos' });
+    }
 });
 
 // Iniciar servidor
